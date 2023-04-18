@@ -9,7 +9,7 @@ The main purpose is for me to learn Rust, but also so that I can take notes quic
 `kpr search <search phrase>`: Search for notes containing the search phrase
 
 # TODO
-- all functions should take `&str` but return `String` (best practice, I think)
+- all functions should take `&str` but return `String` (Rust best practice, I think)
 - Make search better
     - notes for a specific date?
 - "browse" command to allow scrolling through notes
