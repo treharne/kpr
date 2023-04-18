@@ -17,7 +17,7 @@ pub fn format_epoch_time(ms: u128) -> String {
 }
 
 
-pub fn split_line(line: String) -> Option<(String, String)> {
+pub fn split_line(line: &str) -> Option<(String, String)> {
     let mut parts = line.splitn(2, ": ");
     
     let timestamp = parts.next()?.trim().parse::<u128>().ok()?;
@@ -28,22 +28,22 @@ pub fn split_line(line: String) -> Option<(String, String)> {
     Some((timestamp.to_string(), message.to_string()))
 }
 
-pub fn to_line(message: String) -> String {
+pub fn to_line(message: &str) -> String {
     let timestamp = now();
     format!("{}: {}", timestamp, message)
 }
 
 
-pub fn format_line_for_output(line: String) -> Option<String> {
+pub fn format_line_for_output(line: &str) -> Option<String> {
     let (timestamp, message) = split_line(line)?;
     Some(format!("{timestamp} {message}"))
 }
 
 pub fn format_line_result_for_output(line: Result<String, std::io::Error>) -> Option<String> {
-    format_line_option_for_output(line.ok())
+    format_line_option_for_output(line.ok().as_deref())
 }
 
-pub fn format_line_option_for_output<S: Into<String>>(line: Option<S>) -> Option<String> {
+pub fn format_line_option_for_output(line: Option<&str>) -> Option<String> {
     let line = line?.into();
     format_line_for_output(line)
 }

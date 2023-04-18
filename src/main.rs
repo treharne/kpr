@@ -22,9 +22,9 @@ fn keep(message_parts: Vec<String>) -> Result<(), KprError> {
     };
 
     let message = message_parts.join(" ");
-    let line = to_line(message);
+    let line = to_line(&message);
     let line_number = store::write(&line)?;
-    search::index::add_line(line_number, line);
+    search::index::add_line(line_number, &line);
     Ok(())
 }
 

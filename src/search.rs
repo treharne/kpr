@@ -93,7 +93,7 @@ pub mod index {
         line_numbers.push(line_number);
     }
 
-    fn _add_line<'a>(line_number: u16, line: String, stop_words: &HashSet<String>, index: &'a mut HashMap<String, Vec<u16>>) -> &'a HashMap<String, Vec<u16>> {
+    fn _add_line<'a>(line_number: u16, line: &str, stop_words: &HashSet<String>, index: &'a mut HashMap<String, Vec<u16>>) -> &'a HashMap<String, Vec<u16>> {
         let message = match split_line(line) {
             Some((_, message)) => message,
             None => return index,
@@ -108,7 +108,7 @@ pub mod index {
         index
     }
 
-    pub fn add_line(line_number: u16, line: String) {
+    pub fn add_line(line_number: u16, line: &str) {
         let mut index = load();
         let stop_words = load_stopwords();
         _add_line(line_number, line, &stop_words, &mut index);
@@ -120,7 +120,7 @@ pub mod index {
         let stop_words = load_stopwords();
 
         for (line_number, line) in lines.into_iter().enumerate() {
-            let line = line.trim().to_string();
+            let line = line.trim();
             if line.is_empty() {
                 continue;
             }
@@ -136,7 +136,7 @@ pub mod index {
         let filepath = full_path(store_filename);
         let file = File::open(filepath).expect("Could not open store file");
         let reader = BufReader::new(file);
-        let lines = reader.lines().map(|l| l.expect("Could not parse line"));
+        let lines = reader.lines().filter_map(|l| l.ok());
 
         build_from_lines(lines)
     }
