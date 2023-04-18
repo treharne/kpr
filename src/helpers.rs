@@ -47,3 +47,14 @@ pub fn format_line_option_for_output<S: Into<String>>(line: Option<S>) -> Option
     let line = line?.into();
     format_line_for_output(line)
 }
+
+pub fn words_from_stdin() -> Result<Vec<String>, std::io::Error> {
+    let mut buffer = String::new();
+    std::io::stdin().read_line(&mut buffer)?;
+    let message = buffer.trim();
+    let message = message
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
+    Ok(message)
+}
