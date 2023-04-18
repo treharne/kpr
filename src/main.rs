@@ -12,22 +12,28 @@ mod search;
 mod store;
 use store::STORE_FILENAME;
 
-fn message_from_stdin() -> Result<String, std::io::Error> {
-    println!("Enter your message: ");
+fn words_from_stdin() -> Result<Vec<String>, std::io::Error> {
     let mut buffer = String::new();
     std::io::stdin().read_line(&mut buffer)?;
-    let message = buffer.trim().to_string();
+    let message = buffer.trim();
+    let message = message
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
     Ok(message)
 }
 
 
 fn keep(message_parts: Vec<String>) -> Result<(), KprError> {
     let message = match message_parts.len() {
-        0 => message_from_stdin()?,
-        _ => message_parts.join(" "),
+        0 => {
+                println!("Your message: ");
+                words_from_stdin()?
+            },
+        _ => message_parts,
     };
 
-    let line = to_line(message);
+    let line = to_line(message.join(" "));
     let line_number = store::write(&line)?;
     search::index::add_line(line_number, line);
     Ok(())
@@ -45,7 +51,15 @@ fn list(args: ListArgs) -> Result<(), KprError> {
 }
 
 fn search(args: SearchArgs) -> Result<(), KprError> {
-    let results = search::search(args.query, args.n);
+    let query = match args.query.len() {
+        0 => {
+                println!("Search for: ");
+                words_from_stdin()?
+            },
+        _ => args.query,
+    };
+
+    let results = search::search(query, args.n);
     for result in results {
         println!("{}", result);
     }
@@ -83,19 +97,7 @@ fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
 
 
 fn main() {
-
     let cmd = get_cmd();
     dispatch_cmd(cmd).expect("everything is broken");
 
-    // let words = search::load_stopwords();
-    // for word in words {
-    //     println!("{}", word);
-    // }
-
-    // let store_filename = PathBuf::from(STORE_FILENAME);
-    // let index = search::index::build(store_filename);
-    // for (k, v) in index {
-    //     let vals = v.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
-    //     println!("{}: {}", k, vals);
-    // }
 }
