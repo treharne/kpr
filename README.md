@@ -11,6 +11,8 @@ The main purpose is for me to learn Rust, but also so that I can take notes quic
 # TODO
 - Make search better
     - search by date
+    - sort by date, sort by relevance
+- Colour matching words in search results
 - "browse" command to allow scrolling through notes
 - List and Search results should "chunk" into days (so date is not repeated but time is)
 - [Maybe] date based dirs for messages

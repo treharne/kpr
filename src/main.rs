@@ -69,16 +69,14 @@ fn dispatch(cmd: Commands) -> Result<(), KprError> {
             println!("kpr kept your message.");
         },
         Commands::List(args) => {
-            println!("requested {:?} results", args.n);
             list(&args);
         },
         Commands::Search(args) => {
-            println!("requested {:?} results", args.n);
-            println!("search for {:?}", args.query);
             search(args)?;
         },
         Commands::Index => {
             reindex();
+            println!("kpr indexed your messages from scratch.");
         },
     };
     Ok(())

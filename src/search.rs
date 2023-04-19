@@ -14,38 +14,20 @@ use crate::store::open_or_create;
 const INDEX_FILENAME: &str = "index.txt";
 const STOPS_FILENAME: &str = "stopwords.txt";
 
-pub fn load_stopwords() -> HashSet<String> {
-    let filepath = full_path(STOPS_FILENAME);
-    let file = open_read(filepath).expect("Could not open stopwords file");
-    let reader = BufReader::new(file);
-    let mut stopwords = HashSet::new();
-
-    for line in reader.lines() {
-        let line = line.expect("Could not parse line");
-        stopwords.insert(line.trim().to_string());
-    }
-
-    stopwords
-}
-
-
 pub fn search(query: &[String], n: usize) -> Vec<String> {
     let index = Index::load();
     let result_indexes = index.search(query);
-    
+    if result_indexes.is_empty() {
+        return Vec::new();
+    }
+
     let lines = store::load_lines(None);
-
-    let get_line = |line_number: u16| -> Option<String> {
-        let line = lines.get(line_number as usize);
-        Some(line?.to_string())
-    };
-
     result_indexes
         .into_iter()
+        .filter_map(|line_number| lines.get(line_number as usize))
         .take(n)
-        .filter_map(get_line)
+        .map(String::to_string)
         .collect()
-
 }
 
 pub struct Index {
@@ -56,23 +38,19 @@ pub struct Index {
 
 impl Index {
 
-    fn default() -> Self {
-        Self::load()
-    }
-
     pub fn load() -> Self {
         Index {
             index: Self::load_index(),
-            stop_words : load_stopwords(),
-            stemmer: Stemmer::create(Algorithm::English),
+            stop_words : Self::load_stopwords(),
+            stemmer: Self::new_stemmer(),
         }
     }
 
     fn from_lines(lines: impl IntoIterator<Item=String>) -> Self {
         let mut index = Self {
             index: HashMap::new(),
-            stop_words : load_stopwords(),
-            stemmer: Stemmer::create(Algorithm::English),
+            stop_words : Self::load_stopwords(),
+            stemmer: Self::new_stemmer(),
         };
 
         for (line_number, line) in lines.into_iter().enumerate() {
@@ -94,6 +72,10 @@ impl Index {
         let lines = reader.lines().filter_map(Result::ok);
 
         Self::from_lines(lines)
+    }
+
+    fn new_stemmer() -> Stemmer {
+        Stemmer::create(Algorithm::English)
     }
 
     fn clean(&self, word: &str) -> String {
@@ -126,8 +108,6 @@ impl Index {
 
     fn lookup_word(&self, word: &str) -> Vec<u16> {
         let word = self.clean(word);
-        println!("Looking up word: {:?}", &word);
-        println!("Index: {:?}", &self.index);
         match self.index.get(&word) {
             Some(line_numbers) => line_numbers.clone(),
             None => Vec::new(),
@@ -142,7 +122,7 @@ impl Index {
 
     }
 
-    pub fn load_index() -> HashMap<String, Vec<u16>> {
+    fn load_index() -> HashMap<String, Vec<u16>> {
         let filepath = full_path(INDEX_FILENAME);
 
         let file = OpenOptions::new()
@@ -156,6 +136,20 @@ impl Index {
 
         let reader = BufReader::new(file);
         bincode::deserialize_from(reader).expect("Could not deserialize index file")
+    }
+
+    fn load_stopwords() -> HashSet<String> {
+        let filepath = full_path(STOPS_FILENAME);
+        let file = open_read(filepath).expect("Could not open stopwords file");
+        let reader = BufReader::new(file);
+        let mut stopwords = HashSet::new();
+    
+        for line in reader.lines() {
+            let line = line.expect("Could not parse line");
+            stopwords.insert(line.trim().to_string());
+        }
+    
+        stopwords
     }
 
     pub fn search(&self, query: &[String]) -> Vec<u16> {
@@ -188,8 +182,6 @@ impl Index {
     }
 }
     
-
-// }
 
 #[cfg(test)]
 mod tests {
