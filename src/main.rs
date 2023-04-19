@@ -59,7 +59,7 @@ fn reindex() {
     search::index::save(&index);
 }
 
-fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
+fn dispatch(cmd: Commands) -> Result<(), KprError> {
     match cmd {
         Commands::Keep { message } => {
             keep(message)?;
@@ -84,6 +84,6 @@ fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
 
 fn main() {
     let cmd = get_cmd();
-    dispatch_cmd(cmd).expect("everything is broken");
+    dispatch(cmd).expect("everything is broken");
 
 }

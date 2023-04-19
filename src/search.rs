@@ -89,7 +89,7 @@ pub mod index {
 
     pub fn add_word(word: &str, line_number: u16, index: &mut HashMap<String, Vec<u16>>) {
         let word = clean(word);
-        let line_numbers = index.entry(word).or_insert(Vec::new());
+        let line_numbers = index.entry(word).or_default();
         line_numbers.push(line_number);
     }
 
