@@ -22,7 +22,7 @@ pub fn load_stopwords() -> HashSet<String> {
 
 
 
-pub fn search(query: Vec<String>, n: usize) -> Vec<String> {
+pub fn search(query: &[String], n: usize) -> Vec<String> {
     let stop_words = load_stopwords();
     let index = index::load();
     let result_indexes = index::search(query, &stop_words, &index);
@@ -77,9 +77,9 @@ pub mod index {
         bincode::serialize_into(writer, index).expect("Could not serialize index file");
     }
 
-    fn clean<S: ToString>(word: S) -> String {
+    // fn clean<S: ToString>(word: S) -> String {
+    fn clean(word: &str) -> String {
         word
-            .to_string()
             .trim()
             .to_lowercase()
             .chars()
@@ -87,17 +87,15 @@ pub mod index {
             .collect()
     }
 
-    pub fn add_word<S: ToString>(word: S, line_number: u16, index: &mut HashMap<String, Vec<u16>>) {
+    pub fn add_word(word: &str, line_number: u16, index: &mut HashMap<String, Vec<u16>>) {
         let word = clean(word);
         let line_numbers = index.entry(word).or_insert(Vec::new());
         line_numbers.push(line_number);
     }
 
     fn _add_line<'a>(line_number: u16, line: &str, stop_words: &HashSet<String>, index: &'a mut HashMap<String, Vec<u16>>) -> &'a HashMap<String, Vec<u16>> {
-        let message = match split_line(line) {
-            Some((_, message)) => message,
-            None => return index,
-        };
+
+        let Some((_, message)) = split_line(line) else { return index };
 
         for word in message.split_whitespace() {
             if stop_words.contains(word) {
@@ -124,7 +122,7 @@ pub mod index {
             if line.is_empty() {
                 continue;
             }
-            println!("Processing line {}", line);
+            println!("Processing line {line}");
             _add_line(line_number as u16, line, &stop_words, &mut index);
         }
 
@@ -136,7 +134,7 @@ pub mod index {
         let filepath = full_path(store_filename);
         let file = File::open(filepath).expect("Could not open store file");
         let reader = BufReader::new(file);
-        let lines = reader.lines().filter_map(|l| l.ok());
+        let lines = reader.lines().filter_map(Result::ok);
 
         build_from_lines(lines)
     }
@@ -150,7 +148,7 @@ pub mod index {
     }
 
     pub fn search(
-            query: Vec<String>, 
+            query: &[String], 
             stop_words: &HashSet<String>, 
             index: &HashMap<String, Vec<u16>>,
         ) -> Vec<u16> {
@@ -178,9 +176,9 @@ pub mod index {
     let mut counts: Vec<(u16, u16)> = counts.into_iter().collect();
     
     // reverse sort
-    fn negate(x: &u16) -> i32 {-(*x as i32)}
-    counts.sort_by_key(|(_, count)| negate(count));
-    counts.iter().map(|(line_number, _)| *line_number).collect()
+    fn negate(x: u16) -> i32 {-(x as i32)}
+    counts.sort_by_key(|(_, count)| negate(*count));
+    counts.into_iter().map(|(line_number, _)| line_number).collect()
         
     }
     
@@ -224,18 +222,18 @@ pub mod index {
             let mut stop_words = HashSet::new();
             stop_words.insert("the".to_string());
 
-            let results = search(query, &stop_words,&idx);
+            let results = search(&query, &stop_words, &idx);
             assert!(results.len() > 0);
             assert!(results.len() <= lines.len());
             println!("{:?}", &results);
             // assert!(false);
 
             let query = vec!["nothing".to_string()];
-            let results = search(query, &stop_words,&idx);
+            let results = search(&query, &stop_words, &idx);
             assert!(results.len() == 1);
 
             let query = vec!["three".to_string()];
-            let results = search(query, &stop_words,&idx);
+            let results = search(&query, &stop_words, &idx);
             assert!(results.len() == 2);
 
 

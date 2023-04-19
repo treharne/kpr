@@ -25,10 +25,9 @@ pub fn open_or_create<S>(filepath: S, append: bool) -> Result<File, std::io::Err
             .write(true)
             .create(true);
 
-        let options = match append {
-            true => options.append(true),
-            false => options.truncate(true),
-        };
+
+        let options = if append { options.append(true) } else { options.truncate(true) };
+        
         options.open(filepath)
 }
 
@@ -40,11 +39,6 @@ pub fn open_read<S>(filepath: S) -> Result<File, std::io::Error>
             .open(filepath)
 }
 
-
-fn write_line<S: Into<String>>(file: &mut File, line: S) -> Result<(), std::io::Error> {
-    let line = line.into();
-    writeln!(file, "{line}")
-}
 
 pub fn load_lines_from(file: File, n: Option<usize>) -> Vec<String> {
     let lines_from_last = RevBufReader::new(file)
@@ -69,7 +63,7 @@ pub fn load_lines(n: Option<usize>) -> Vec<String> {
     load_lines_from(file, n)
 }
 
-pub fn write<S: Into<String>>(text: S) -> Result<u16, std::io::Error> {
+pub fn write(text: &str) -> Result<u16, std::io::Error> {
     let filepath = full_path(STORE_FILENAME);
     let file = open_or_create(filepath, true)?;
 
@@ -78,7 +72,7 @@ pub fn write<S: Into<String>>(text: S) -> Result<u16, std::io::Error> {
     let reader = BufReader::new(file.try_clone()?);
     let line_count = reader.lines().count() as u16;
 
-    write_line(&mut file.try_clone()?, text)?;
+    writeln!(&mut file.try_clone()?, "{text}")?;
 
     // The file will be unlocked when _lock_guard goes out of scope, even if an error occurs.
     Ok(line_count)

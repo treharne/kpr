@@ -12,9 +12,10 @@ mod search;
 mod store;
 use store::STORE_FILENAME;
 
+
 fn keep(message_parts: Vec<String>) -> Result<(), KprError> {
 
-    let message_parts = if message_parts.len() == 0 {
+    let message_parts = if message_parts.is_empty() {
         println!("Your message: ");
         words_from_stdin()?
     } else {
@@ -29,35 +30,33 @@ fn keep(message_parts: Vec<String>) -> Result<(), KprError> {
 }
 
 
-fn list(args: ListArgs) -> Result<(), KprError> {
+fn list(args: &ListArgs) {
     let lines = store::load_lines(Some(args.n));
 
     for line in lines {
-        println!("{}", line);
+        println!("{line}");
     }
 
-    Ok(())
 }
 
 fn search(args: SearchArgs) -> Result<(), KprError> {
-    let query = if args.query.len() == 0 {
+    let query = if args.query.is_empty() {
         println!("Search for: ");
         words_from_stdin()?
     } else {
         args.query
     };
 
-    let results = search::search(query, args.n);
+    let results = search::search(&query, args.n);
     for result in results {
-        println!("{}", result);
+        println!("{result}");
     }
     Ok(())
 }
 
-fn reindex() -> Result<(), KprError> {
+fn reindex() {
     let index = search::index::build(STORE_FILENAME);
     search::index::save(&index);
-    Ok(())
 }
 
 fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
@@ -68,7 +67,7 @@ fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
         },
         Commands::List(args) => {
             println!("requested {:?} results", args.n);
-            list(args)?;
+            list(&args);
         },
         Commands::Search(args) => {
             println!("requested {:?} results", args.n);
@@ -76,7 +75,7 @@ fn dispatch_cmd(cmd: Commands) -> Result<(), KprError> {
             search(args)?;
         },
         Commands::Index => {
-            reindex()?;
+            reindex();
         },
     };
     Ok(())

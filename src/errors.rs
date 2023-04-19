@@ -1,6 +1,5 @@
 #[derive(Debug)]
 
-// std::fmt::Error
 pub struct KprError {
     message: String,
 }
@@ -9,11 +8,6 @@ impl KprError {
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_string(),
-        }
-    }
-    pub fn default() -> Self {
-        Self {
-            message: "Unknown error".to_string(),
         }
     }
 }

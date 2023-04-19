@@ -30,7 +30,7 @@ pub fn split_line(line: &str) -> Option<(String, String)> {
 
 pub fn to_line(message: &str) -> String {
     let timestamp = now();
-    format!("{}: {}", timestamp, message)
+    format!("{timestamp}: {message}")
 }
 
 
@@ -44,8 +44,7 @@ pub fn format_line_result_for_output(line: Result<String, std::io::Error>) -> Op
 }
 
 pub fn format_line_option_for_output(line: Option<&str>) -> Option<String> {
-    let line = line?.into();
-    format_line_for_output(line)
+    format_line_for_output(line?)
 }
 
 pub fn words_from_stdin() -> Result<Vec<String>, std::io::Error> {
@@ -54,7 +53,7 @@ pub fn words_from_stdin() -> Result<Vec<String>, std::io::Error> {
     let message = buffer.trim();
     let message = message
         .split_whitespace()
-        .map(|s| s.to_string())
+        .map(ToString::to_string)
         .collect();
     Ok(message)
 }
