@@ -1,10 +1,18 @@
-use std::collections::HashSet;
-use std::io::{BufRead, BufReader};
+use std::collections::{HashSet, HashMap};
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, BufWriter};
+use std::path::PathBuf;
+
+use bincode;
+extern crate rust_stemmers;
+use rust_stemmers::{Algorithm, Stemmer};
+
 use crate::store::{full_path, open_read, self};
+use crate::helpers::split_line;
+use crate::store::open_or_create;
 
-
+const INDEX_FILENAME: &str = "index.txt";
 const STOPS_FILENAME: &str = "stopwords.txt";
-
 
 pub fn load_stopwords() -> HashSet<String> {
     let filepath = full_path(STOPS_FILENAME);
@@ -21,11 +29,9 @@ pub fn load_stopwords() -> HashSet<String> {
 }
 
 
-
 pub fn search(query: &[String], n: usize) -> Vec<String> {
-    let stop_words = load_stopwords();
-    let index = index::load();
-    let result_indexes = index::search(query, &stop_words, &index);
+    let index = Index::load();
+    let result_indexes = index.search(query);
     
     let lines = store::load_lines(None);
 
@@ -42,19 +48,101 @@ pub fn search(query: &[String], n: usize) -> Vec<String> {
 
 }
 
-pub mod index {
-    use std::{collections::{HashMap, HashSet}, fs::{File, OpenOptions}, io::{BufReader, BufWriter, BufRead}, path::PathBuf};
+pub struct Index {
+    index: HashMap<String, Vec<u16>>,
+    stop_words: HashSet<String>,
+    stemmer: Stemmer,
+}
 
-    use bincode;
+impl Index {
 
-    use crate::helpers::split_line;
-    use crate::store::{open_or_create, full_path};
+    fn default() -> Self {
+        Self::load()
+    }
 
-    use super::load_stopwords;
+    pub fn load() -> Self {
+        Index {
+            index: Self::load_index(),
+            stop_words : load_stopwords(),
+            stemmer: Stemmer::create(Algorithm::English),
+        }
+    }
 
-    const INDEX_FILENAME: &str = "index.txt";
+    fn from_lines(lines: impl IntoIterator<Item=String>) -> Self {
+        let mut index = Self {
+            index: HashMap::new(),
+            stop_words : load_stopwords(),
+            stemmer: Stemmer::create(Algorithm::English),
+        };
 
-    pub fn load() -> HashMap<String, Vec<u16>> {
+        for (line_number, line) in lines.into_iter().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            index.add_line(line_number as u16, line);
+        }
+        index
+    }
+
+    pub fn from_store_path(store_filename: impl Into<PathBuf>) -> Self {
+        let store_filename = store_filename.into();
+        let filepath = full_path(store_filename);
+        let file = File::open(filepath).expect("Could not open store file");
+        let reader = BufReader::new(file);
+        let lines = reader.lines().filter_map(Result::ok);
+
+        Self::from_lines(lines)
+    }
+
+    fn clean(&self, word: &str) -> String {
+        let lower = 
+            word
+            .trim()
+            .trim_matches(|c: char| !c.is_alphanumeric())
+            .to_lowercase();
+        self.stemmer.stem(&lower).to_string()
+    }   
+
+    fn add_word(&mut self, word: &str, line_number: u16) {
+
+        let word = self.clean(word);
+        let line_numbers = self.index
+            .entry(word)
+            .or_default();
+        line_numbers.push(line_number);
+    }
+
+    pub fn add_line(&mut self, line_number: u16, line: &str) {
+        let Some((_, message)) = split_line(line) else { return };
+        for word in message.split_whitespace() {
+            if self.stop_words.contains(word) {
+                continue;
+            }
+            self.add_word(word, line_number);
+        }
+    }
+
+    fn lookup_word(&self, word: &str) -> Vec<u16> {
+        let word = self.clean(word);
+        println!("Looking up word: {:?}", &word);
+        println!("Index: {:?}", &self.index);
+        match self.index.get(&word) {
+            Some(line_numbers) => line_numbers.clone(),
+            None => Vec::new(),
+        }
+    }
+
+    pub fn save(&self) {
+        let filepath = full_path(INDEX_FILENAME);
+        let file = open_or_create(filepath, false).expect("Could not create index file");
+        let writer = BufWriter::new(file);
+        bincode::serialize_into(writer, &self.index).expect("Could not serialize index file");
+
+    }
+
+    pub fn load_index() -> HashMap<String, Vec<u16>> {
         let filepath = full_path(INDEX_FILENAME);
 
         let file = OpenOptions::new()
@@ -70,174 +158,94 @@ pub mod index {
         bincode::deserialize_from(reader).expect("Could not deserialize index file")
     }
 
-    pub fn save(index: &HashMap<String, Vec<u16>>) {
-        let filepath = full_path(INDEX_FILENAME);
-        let file = open_or_create(filepath, false).expect("Could not create index file");
-        let writer = BufWriter::new(file);
-        bincode::serialize_into(writer, index).expect("Could not serialize index file");
-    }
+    pub fn search(&self, query: &[String]) -> Vec<u16> {
 
-    // fn clean<S: ToString>(word: S) -> String {
-    fn clean(word: &str) -> String {
-        word
-            .trim()
-            .to_lowercase()
-            .chars()
-            .filter(|c| c.is_alphanumeric())
-            .collect()
-    }
+        let mut ocurrences = Vec::new();
 
-    pub fn add_word(word: &str, line_number: u16, index: &mut HashMap<String, Vec<u16>>) {
-        let word = clean(word);
-        let line_numbers = index.entry(word).or_default();
-        line_numbers.push(line_number);
-    }
-
-    fn _add_line<'a>(line_number: u16, line: &str, stop_words: &HashSet<String>, index: &'a mut HashMap<String, Vec<u16>>) -> &'a HashMap<String, Vec<u16>> {
-
-        let Some((_, message)) = split_line(line) else { return index };
-
-        for word in message.split_whitespace() {
-            if stop_words.contains(word) {
+        for word in query {
+            let word = self.clean(word);
+            if self.stop_words.contains(&word) {
                 continue;
             }
-            add_word(word, line_number, index);
-        }
-        index
-    }
 
-    pub fn add_line(line_number: u16, line: &str) {
-        let mut index = load();
-        let stop_words = load_stopwords();
-        _add_line(line_number, line, &stop_words, &mut index);
-        save(&index);
-    }
-    
-    fn build_from_lines<T: IntoIterator<Item = String>>(lines: T) -> HashMap<String, Vec<u16>> {
-        let mut index = HashMap::new();
-        let stop_words = load_stopwords();
-
-        for (line_number, line) in lines.into_iter().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            println!("Processing line {line}");
-            _add_line(line_number as u16, line, &stop_words, &mut index);
+            let index_hits = self.lookup_word(&word);
+            ocurrences.extend(index_hits);
         }
 
-        index
-    }
+        let mut counts: HashMap<u16, u16> = HashMap::new();
+        for line_number in ocurrences {
+            let count = counts.get(&line_number).unwrap_or(&0);
 
-    pub fn build<PB: Into<PathBuf>>(store_filename: PB) -> HashMap<String, Vec<u16>> {
-        let store_filename = store_filename.into();
-        let filepath = full_path(store_filename);
-        let file = File::open(filepath).expect("Could not open store file");
-        let reader = BufReader::new(file);
-        let lines = reader.lines().filter_map(Result::ok);
-
-        build_from_lines(lines)
-    }
-
-    fn _lookup_word(word: &str, index: &HashMap<String, Vec<u16>>) -> Vec<u16> {
-        let word = clean(word);
-        match index.get(&word) {
-            Some(line_numbers) => line_numbers.clone(),
-            None => Vec::new(),
-        }
-    }
-
-    pub fn search(
-            query: &[String], 
-            stop_words: &HashSet<String>, 
-            index: &HashMap<String, Vec<u16>>,
-        ) -> Vec<u16> {
-    
-    let mut ocurrences = Vec::new();
-
-    for word in query {
-        let word = clean(word);
-        if stop_words.contains(&word) {
-            continue;
+            counts.insert(line_number, count + 1);
         }
 
-        let index_hits = _lookup_word(&word, index);
-        ocurrences.extend(index_hits);
-    }
-
-    let mut counts: HashMap<u16, u16> = HashMap::new();
-    for line_number in ocurrences {
-        let count = counts.get(&line_number).unwrap_or(&0);
-
-        counts.insert(line_number, count + 1);
-    }
-
-
-    let mut counts: Vec<(u16, u16)> = counts.into_iter().collect();
-    
-    // reverse sort
-    fn negate(x: u16) -> i32 {-(x as i32)}
-    counts.sort_by_key(|(_, count)| negate(*count));
-    counts.into_iter().map(|(line_number, _)| line_number).collect()
+        let mut counts: Vec<(u16, u16)> = counts.into_iter().collect();
+        
+        // reverse sort
+        counts.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        counts.into_iter().map(|(line_number, _)| line_number).collect()
         
     }
+}
     
-    #[cfg(test)]
-    mod tests {
-        use crate::search::{index};
-        use super::*;
-        const INDEX_FILE: &'static str = "
-        1680917693908: message two
-        1680917698382: message 3
-        1680917701962: message three
-        1680917704320: message
-        1680917706282: three
-        1680917709913: whatever
-        1680917717166: Nothing... I think
-        1680917722186: Another message
-        1680917729297: one more message
-        1680917733553: one more time
-    ";
 
-        #[test]
-        fn build_index_works() {
-            let lines = INDEX_FILE.lines().map(|l| l.to_string());
+// }
 
-            let idx = index::build_from_lines(lines);
-            println!("{:?}", &idx);
-            assert!(idx.contains_key("message"));
-            assert!(idx.contains_key("three"));
-            assert!(idx.contains_key("whatever"));
-            assert!(idx.contains_key("nothing"));
-            assert_eq!(idx.get("message").unwrap().len(), 6);
-            assert_eq!(idx.len(), 11);
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const INDEX_FILE: &'static str = "
+    1680917693908: message two
+    1680917698382: message 3
+    1680917701962: message three
+    1680917704320: message
+    1680917706282: three
+    1680917709913: whatever
+    1680917717166: Nothing... I think
+    1680917722186: Another message
+    1680917729297: one more message
+    1680917733553: one more time
+";
 
-        #[test]
-        fn search_indexes_works() {
-            let lines: Vec<String> = INDEX_FILE.lines().map(|l| l.to_string()).collect();
+    #[test]
+    fn build_index_works() {
+        let lines = INDEX_FILE.lines().map(|l| l.to_string());
 
-            let idx = index::build_from_lines(lines.clone());
-            let query = vec!["message".to_string(), "three".to_string()];
-            let mut stop_words = HashSet::new();
-            stop_words.insert("the".to_string());
+        let index = Index::from_lines(lines);
+        assert_ne!(index.lookup_word("message").len(), 0);
+        assert_ne!(index.lookup_word("three").len(), 0);
+        assert_ne!(index.lookup_word("whatever").len(), 0);
+        assert_ne!(index.lookup_word("nothing").len(), 0);
+        assert_eq!(index.lookup_word("message").len(), 6);
+        assert_eq!(index.index.len(), 11)
+    }
 
-            let results = search(&query, &stop_words, &idx);
-            assert!(results.len() > 0);
-            assert!(results.len() <= lines.len());
-            println!("{:?}", &results);
-            // assert!(false);
+    #[test]
+    fn search_indexes_works() {
+        let lines: Vec<String> = INDEX_FILE.lines().map(|l| l.to_string()).collect();
 
-            let query = vec!["nothing".to_string()];
-            let results = search(&query, &stop_words, &idx);
-            assert!(results.len() == 1);
+        let index = Index::from_lines(lines.clone());
+        let query = vec!["message".to_string(), "three".to_string()];
+        let mut stop_words = HashSet::new();
+        stop_words.insert("the".to_string());
 
-            let query = vec!["three".to_string()];
-            let results = search(&query, &stop_words, &idx);
-            assert!(results.len() == 2);
+        let results = index.search(&query);
+        assert!(results.len() > 0);
+        assert!(results.len() <= lines.len());
+        println!("{:?}", &results);
+        // assert!(false);
+        
+        let query = vec!["nothing".to_string()];
+        let results = index.search(&query);
+        println!("{:?}", &results);
+        println!("{:?}", &index.index);
 
+        assert!(results.len() == 1);
+        
+        let query = vec!["three".to_string()];
+        let results = index.search(&query);
+        assert!(results.len() == 2);
 
-        }
 
     }
 

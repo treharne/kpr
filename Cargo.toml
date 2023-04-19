@@ -12,4 +12,5 @@ clap = { version = "4.2.1", features = ["derive"] }
 dirs = "5.0.0"
 fs2 = "0.4.3"
 rev_buf_reader = "0.3.0"
+rust-stemmers = "1.2.0"
 serde = "1.0.159"

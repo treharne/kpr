@@ -25,7 +25,10 @@ fn keep(message_parts: Vec<String>) -> Result<(), KprError> {
     let message = message_parts.join(" ");
     let line = to_line(&message);
     let line_number = store::write(&line)?;
-    search::index::add_line(line_number, &line);
+
+    let mut index = search::Index::load();
+    index.add_line(line_number, &line);
+    index.save();
     Ok(())
 }
 
@@ -55,8 +58,8 @@ fn search(args: SearchArgs) -> Result<(), KprError> {
 }
 
 fn reindex() {
-    let index = search::index::build(STORE_FILENAME);
-    search::index::save(&index);
+    let index = search::Index::from_store_path(STORE_FILENAME);
+    index.save();
 }
 
 fn dispatch(cmd: Commands) -> Result<(), KprError> {
