@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::{TimeZone, NaiveDateTime, Local, DateTime};
 
-use crate::{ago, cli::DateFormat};
+use crate::{ago, cli::DateFormat, tables::make_table};
 
 pub fn now() -> String {
     let timestamp = SystemTime::now()
@@ -34,47 +34,24 @@ pub fn to_line(message: &str) -> String {
     format!("{timestamp}: {message}")
 }
 
-pub fn get_fmt_fn(format: DateFormat) -> fn(DateTime<Local>, &str) -> String {
+pub fn get_date_fmt_fn(format: DateFormat) -> fn(DateTime<Local>) -> String {
     match format {
-        DateFormat::Ago => line_as_ago,
-        DateFormat::ISO => line_as_iso1806,
-        DateFormat::Epoch => line_as_epoch,
-        DateFormat::EpochMs => line_as_epoch_ms,
-        DateFormat::Human => line_as_human,
+        DateFormat::Ago => ago::from_datetime,
+        DateFormat::Human => |ts| ts.format("%a %e %b %y %k:%M").to_string(),
+        DateFormat::ISO => |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
+        DateFormat::Epoch => |ts| ts.timestamp().to_string(),
+        DateFormat::EpochMs => |ts| ts.timestamp_millis().to_string(),
     }
 }
 
-pub fn line_as_ago(timestamp: DateTime<Local>, message: &str) -> String {
-    let time_ago = ago::from_datetime(timestamp);
-    format!("[ {time_ago} ] {message}")
-}
-
-pub fn line_as_iso1806(timestamp: DateTime<Local>, message: &str) -> String {
-    let formatted_timestamp = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-    format!("[ {formatted_timestamp} ] {message}")
-}
-
-pub fn line_as_epoch(timestamp: DateTime<Local>, message: &str) -> String {
-    let epoch = timestamp.timestamp();
-    format!("[ {epoch} ] {message}")
-}
-
-pub fn line_as_epoch_ms(timestamp: DateTime<Local>, message: &str) -> String {
-    let epoch_ms = timestamp.timestamp_millis();
-    format!("[ {epoch_ms} ] {message}")
-}
-
-pub fn line_as_human(timestamp: DateTime<Local>, message: &str) -> String {
-    let formatted_timestamp = timestamp.format("%a %e %b %y %k:%M").to_string();
-    format!("[ {formatted_timestamp} ] {message}")
-}
-
-pub fn format_lines(lines: Vec<String>, formatter: fn(DateTime<Local>, &str) -> String) -> Vec<String> {
-    lines
+pub fn format_lines(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<String> {
+    let rows: Vec<(String, String)> = lines
         .iter()
         .filter_map(|line| split_line(line))
-        .map(|(timestamp, message)| formatter(timestamp, &message))
-        .collect()
+        .map(|(timestamp, message)| (formatter(timestamp), message))
+        .collect();
+
+    make_table(&rows)       
 }
 
 

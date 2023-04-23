@@ -5,8 +5,8 @@ use chrono::{Local, DateTime, Duration};
 #[allow(non_upper_case_globals)] const hours: fn(i64) -> Duration = Duration::hours;
 #[allow(non_upper_case_globals)] const days: fn(i64) -> Duration = Duration::days;
 
-pub fn from_datetime(datetime: DateTime<Local>) -> String {
-    from_duration(Local::now() - datetime)
+pub fn from_datetime(timestamp: DateTime<Local>) -> String {
+    from_duration(Local::now() - timestamp)
 }
 
 fn from_duration(duration: Duration) -> String {
