@@ -74,44 +74,49 @@ impl Index {
         Self::from_lines(lines)
     }
 
+    fn clean(word: &str) -> String {
+        word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
+    }
+
     fn new_stemmer() -> Stemmer {
         Stemmer::create(Algorithm::English)
     }
+    
+    fn stem(&self, word: &str) -> String {
+        self.stemmer.stem(&word).to_string()
+    }
 
-    fn clean(&self, word: &str) -> String {
-        let lower = 
-            word
-            .trim()
-            .trim_matches(|c: char| !c.is_alphanumeric())
-            .to_lowercase();
-        self.stemmer.stem(&lower).to_string()
-    }   
+    fn clean_and_stem(&self, word: &str) -> String {
+        self.stem(&Self::clean(word))
+    }
 
     fn add_word(&mut self, word: &str, line_number: u16) {
-
-        let word = self.clean(word);
+        let stem = self.clean_and_stem(word);
         let line_numbers = self.index
-            .entry(word)
+            .entry(stem)
             .or_default();
         line_numbers.push(line_number);
     }
 
     pub fn add_line(&mut self, line_number: u16, line: &str) {
-        let Some((_, message)) = split_line(line) else { return };
+        let message = match split_line(line) {
+            Some((_, message)) => message,
+            None => return,
+        };
+
         for word in message.split_whitespace() {
-            if self.stop_words.contains(word) {
-                continue;
-            }
+            if self.is_stop(word) { continue }
             self.add_word(word, line_number);
         }
     }
 
+    fn is_stop(&self, word: &str) -> bool {
+        self.stop_words.contains(&Self::clean(word))
+    }
+
     fn lookup_word(&self, word: &str) -> Vec<u16> {
-        let word = self.clean(word);
-        match self.index.get(&word) {
-            Some(line_numbers) => line_numbers.clone(),
-            None => Vec::new(),
-        }
+        let stem = self.clean_and_stem(word);
+        self.index.get(&stem).cloned().unwrap_or_default()
     }
 
     pub fn save(&self) {
@@ -119,7 +124,6 @@ impl Index {
         let file = open_or_create(filepath, false).expect("Could not create index file");
         let writer = BufWriter::new(file);
         bincode::serialize_into(writer, &self.index).expect("Could not serialize index file");
-
     }
 
     fn load_index() -> HashMap<String, Vec<u16>> {
@@ -146,7 +150,8 @@ impl Index {
     
         for line in reader.lines() {
             let line = line.expect("Could not parse line");
-            stopwords.insert(line.trim().to_string());
+            let clean_word = Self::clean(&line);
+            stopwords.insert(clean_word);
         }
     
         stopwords
@@ -154,23 +159,21 @@ impl Index {
 
     pub fn search(&self, query: &[String]) -> Vec<u16> {
 
-        let mut ocurrences = Vec::new();
+        let mut occurrences = Vec::new();
 
         for word in query {
-            let word = self.clean(word);
-            if self.stop_words.contains(&word) {
+            if self.is_stop(word) {
                 continue;
             }
 
-            let index_hits = self.lookup_word(&word);
-            ocurrences.extend(index_hits);
+            let stem = self.clean_and_stem(word);
+            let index_hits = self.lookup_word(&stem);
+            occurrences.extend(index_hits);
         }
 
         let mut counts: HashMap<u16, u16> = HashMap::new();
-        for line_number in ocurrences {
-            let count = counts.get(&line_number).unwrap_or(&0);
-
-            counts.insert(line_number, count + 1);
+        for line_number in occurrences {
+            *counts.entry(line_number).or_insert(0) += 1;
         }
 
         let mut counts: Vec<(u16, u16)> = counts.into_iter().collect();
@@ -209,7 +212,7 @@ mod tests {
         assert_ne!(index.lookup_word("whatever").len(), 0);
         assert_ne!(index.lookup_word("nothing").len(), 0);
         assert_eq!(index.lookup_word("message").len(), 6);
-        assert_eq!(index.index.len(), 11)
+        assert_eq!(index.index.len(), 10)
     }
 
     #[test]
@@ -225,7 +228,6 @@ mod tests {
         assert!(results.len() > 0);
         assert!(results.len() <= lines.len());
         println!("{:?}", &results);
-        // assert!(false);
         
         let query = vec!["nothing".to_string()];
         let results = index.search(&query);
@@ -237,10 +239,49 @@ mod tests {
         let query = vec!["three".to_string()];
         let results = index.search(&query);
         assert!(results.len() == 2);
-
-
     }
 
+    #[test]
+    fn test_clean() {
+        let cleaned_word = Index::clean("   Test!  ");
+        assert_eq!(cleaned_word, "test");
+    }
+
+    #[test]
+    fn test_stem() {
+        let index = Index::load();
+        let stemmed_word = index.stem("running");
+        assert_eq!(stemmed_word, "run");
+    }
+
+    #[test]
+    fn test_clean_and_stem() {
+        let index = Index::load();
+        let cleaned_and_stemmed_word = index.clean_and_stem("   Running!  ");
+        assert_eq!(cleaned_and_stemmed_word, "run");
+    }
+
+    #[test]
+    fn test_stop_word_detection() {
+        let index = Index::load();
+        assert!(index.is_stop("the"));
+        assert!(!index.is_stop("test"));
+    }
+
+    #[test]
+    fn test_add_word() {
+        let mut index = Index::from_lines(Vec::<String>::new());
+        index.add_word("test", 0);
+
+        assert_eq!(index.lookup_word("test"), vec![0]);
+    }
+
+    #[test]
+    fn test_add_line() {
+        let mut index = Index::from_lines(Vec::<String>::new());
+        index.add_line(0, "1680917693908: Test message");
+
+        assert_eq!(index.lookup_word("test"), vec![0]);
+        assert_eq!(index.lookup_word("message"), vec![0]);
+    }
 }
-
-

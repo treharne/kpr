@@ -12,7 +12,10 @@ The main purpose is for me to learn Rust, but also so that I can take notes quic
 - Make search better
     - search by date
     - sort by date, sort by relevance
+    - relevance score. exact strings should match better (order matters)
+    - maybe allow some keywords (`AND` `OR` `NOT` or `&` `|` `-`. Are there others?)
 - Colour matching words in search results
 - "browse" command to allow scrolling through notes
 - List and Search results should "chunk" into days (so date is not repeated but time is)
+- More tests and better tests
 - [Maybe] date based dirs for messages

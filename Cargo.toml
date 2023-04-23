@@ -2,6 +2,10 @@
 name = "kpr"
 version = "0.1.0"
 edition = "2021"
+description = "kpr (pronounced 'keeper') lets you take and retrieve notes without leaving your command line."
+authors = ["Jesse Treharne <jessetreharne@gmail.com>"]
+documentation = "https://github.com/treharne/kpr"
+repository = "https://github.com/treharne/kpr"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
