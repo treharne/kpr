@@ -1,59 +1,18 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::{TimeZone, NaiveDateTime, Local, DateTime};
+use chrono::{Local, DateTime};
 
-use crate::{ago, cli::DateFormat, tables::make_table};
-
-pub fn now() -> String {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    format!("{}", timestamp.as_millis())
-}
+use crate::{tables::make_table, records::Record};
 
 
-fn datetime_from_epoch(ms: u128) -> Option<DateTime<Local>> {
-    let utc_datetime = NaiveDateTime::from_timestamp_opt((ms / 1000) as i64, 0)?;
-    let datetime = Local.from_utc_datetime(&utc_datetime);
-    Some(datetime)
-}
-
-
-pub fn split_line(line: &str) -> Option<(DateTime<Local>, String)> {
-    let mut parts = line.splitn(2, ": ");
-    
-    let ms_since_epoch = parts.next()?.trim().parse::<u128>().ok()?;
-    let timestamp = datetime_from_epoch(ms_since_epoch)?;
-    
-    let message = parts.next()?.trim().to_string();
-    
-    Some((timestamp, message))
-}
-
-pub fn to_line(message: &str) -> String {
-    let timestamp = now();
-    format!("{timestamp}: {message}")
-}
-
-pub fn get_date_fmt_fn(format: DateFormat) -> fn(DateTime<Local>) -> String {
-    match format {
-        DateFormat::Ago => ago::from_datetime,
-        DateFormat::Human => |ts| ts.format("%a %e %b %y %k:%M").to_string(),
-        DateFormat::ISO => |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
-        DateFormat::Epoch => |ts| ts.timestamp().to_string(),
-        DateFormat::EpochMs => |ts| ts.timestamp_millis().to_string(),
-    }
-}
-
-pub fn format_lines(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<(String, String)> {
-    lines
+pub fn format_records(records: &[Record], formatter: fn(DateTime<Local>) -> String) -> Vec<(String, String)> {
+    records
     .iter()
-    .filter_map(|line| split_line(line))
-    .map(|(timestamp, message)| (formatter(timestamp), message))
+    .map(|record| (formatter(record.timestamp), record.message.clone()))
     .collect()
 }
 
-pub fn format_lines_to_table(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<String> {
-    let rows: Vec<(String, String)> = format_lines(lines, formatter);
+pub fn format_records_to_table(records: &[Record], formatter: fn(DateTime<Local>) -> String) -> Vec<String> {
+    let rows: Vec<(String, String)> = format_records(records, formatter);
     make_table(&rows)       
 }
 

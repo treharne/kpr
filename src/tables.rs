@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use textwrap::{wrap};
+use textwrap::wrap;
 extern crate unicode_segmentation;
 use unicode_segmentation::UnicodeSegmentation;
 use colored::Colorize;

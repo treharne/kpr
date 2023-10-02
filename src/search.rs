@@ -8,8 +8,8 @@ extern crate rust_stemmers;
 use rust_stemmers::{Algorithm, Stemmer};
 use colored::Colorize;
 
+use crate::records::Record;
 use crate::store::{full_path, open_read, self};
-use crate::helpers::split_line;
 use crate::store::open_or_create;
 
 
@@ -17,7 +17,7 @@ use crate::store::open_or_create;
 const INDEX_FILENAME: &str = "index.txt";
 const STOPS_FILENAME: &str = "stopwords.txt";
 
-pub fn search(query: &[String], n: usize) -> Vec<String> {
+pub fn search(query: &[String], n: usize) -> Vec<Record> {
     let index = Index::load();
     let result_indexes = index.search(query);
     if result_indexes.is_empty() {
@@ -29,7 +29,7 @@ pub fn search(query: &[String], n: usize) -> Vec<String> {
         .into_iter()
         .filter_map(|line_number| lines.get(line_number as usize))
         .take(n)
-        .map(String::to_string)
+        .filter_map(|line| Record::from_store(line))
         .collect()
 }
 
@@ -76,14 +76,14 @@ impl Index {
             stemmer: new_stemmer(),
         };
 
-        for (line_number, line) in lines.into_iter().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
+        lines.into_iter().enumerate().for_each(|(line_number, line)| {
+            let record = match Record::from_store(&line) {
+                Some(record) => record,
+                None => return,
+            };
+            index.add_line(line_number as u16, &record);
+        });
 
-            index.add_line(line_number as u16, line);
-        }
         index
     }
 
@@ -117,13 +117,8 @@ impl Index {
         line_numbers.push(line_number);
     }
 
-    pub fn add_line(&mut self, line_number: u16, line: &str) {
-        let message = match split_line(line) {
-            Some((_, message)) => message,
-            None => return,
-        };
-
-        for word in message.split_whitespace() {
+    pub fn add_line(&mut self, line_number: u16, record: &Record) {
+        for word in record.message.split_whitespace() {
             if self.is_stop(word) { continue }
             self.add_word(word, line_number);
         }

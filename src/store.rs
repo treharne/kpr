@@ -6,6 +6,7 @@ use rev_buf_reader::RevBufReader;
 
 // use crate::helpers::format_line_result_for_output;
 use crate::locks::LockGuard;
+use crate::records::Record;
 
 pub const STORE_FILENAME: &str = "store.txt";
 
@@ -40,11 +41,10 @@ pub fn open_read<S>(filepath: S) -> Result<File, std::io::Error>
 }
 
 
-pub fn load_lines_from(file: File, n: Option<usize>) -> Vec<String> {
+fn load_lines_from(file: File, n: Option<usize>) -> Vec<String> {
     let lines_from_last = RevBufReader::new(file)
         .lines()
         .filter_map(|line| line.ok());
-        // .filter_map(format_line_result_for_output);
 
     let lines: Vec<String> = match n {
         Some(n_lines) => lines_from_last.take(n_lines).collect(),
@@ -64,7 +64,14 @@ pub fn load_lines(n: Option<usize>) -> Vec<String> {
     load_lines_from(file, n)
 }
 
-pub fn write(text: &str) -> Result<u16, std::io::Error> {
+pub fn load_records(n: Option<usize>) -> Vec<Record> {
+    load_lines(n)
+        .iter()
+        .filter_map(|line| Record::from_store(&line))
+        .collect()
+}
+
+pub fn write(record: &Record) -> Result<u16, std::io::Error> {
     let filepath = full_path(STORE_FILENAME);
     let file = open_or_create(filepath, true)?;
 
@@ -73,7 +80,8 @@ pub fn write(text: &str) -> Result<u16, std::io::Error> {
     let reader = BufReader::new(file.try_clone()?);
     let line_count = reader.lines().count() as u16;
 
-    writeln!(&mut file.try_clone()?, "{text}")?;
+    let store_line = record.to_store();
+    writeln!(&mut file.try_clone()?, "{store_line}")?;
 
     // The file will be unlocked when _lock_guard goes out of scope, even if an error occurs.
     Ok(line_count)
