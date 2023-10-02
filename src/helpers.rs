@@ -44,13 +44,16 @@ pub fn get_date_fmt_fn(format: DateFormat) -> fn(DateTime<Local>) -> String {
     }
 }
 
-pub fn format_lines(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<String> {
-    let rows: Vec<(String, String)> = lines
-        .iter()
-        .filter_map(|line| split_line(line))
-        .map(|(timestamp, message)| (formatter(timestamp), message))
-        .collect();
+pub fn format_lines(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<(String, String)> {
+    lines
+    .iter()
+    .filter_map(|line| split_line(line))
+    .map(|(timestamp, message)| (formatter(timestamp), message))
+    .collect()
+}
 
+pub fn format_lines_to_table(lines: Vec<String>, formatter: fn(DateTime<Local>) -> String) -> Vec<String> {
+    let rows: Vec<(String, String)> = format_lines(lines, formatter);
     make_table(&rows)       
 }
 

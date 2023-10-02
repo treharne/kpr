@@ -6,10 +6,13 @@ use std::path::PathBuf;
 use bincode;
 extern crate rust_stemmers;
 use rust_stemmers::{Algorithm, Stemmer};
+use colored::Colorize;
 
 use crate::store::{full_path, open_read, self};
 use crate::helpers::split_line;
 use crate::store::open_or_create;
+
+
 
 const INDEX_FILENAME: &str = "index.txt";
 const STOPS_FILENAME: &str = "stopwords.txt";
@@ -30,10 +33,30 @@ pub fn search(query: &[String], n: usize) -> Vec<String> {
         .collect()
 }
 
+pub fn format_matches(query: &[String], result_lines: Vec<(String, String)>) -> Vec<(String, String)> {
+    let stemmer = new_stemmer();
+    let query_stems: HashSet<_> = query.iter().map(|query_word| stemmer.stem(query_word).to_string().to_lowercase()).collect();
+    result_lines.iter().map(|(timestamp, line)| {
+        let highlighted_line = line.split(' ').map(|word| {
+            let word_stem = stemmer.stem(&word).to_lowercase();
+            if query_stems.contains(&word_stem) {
+                return word.to_owned().green().to_string()
+            }
+            word.to_owned()
+        }).collect::<Vec<String>>().join(" ");
+        (timestamp.to_owned(), highlighted_line)
+    })
+    .collect()
+}
+
 pub struct Index {
     index: HashMap<String, Vec<u16>>,
     stop_words: HashSet<String>,
     stemmer: Stemmer,
+}
+
+fn new_stemmer() -> Stemmer {
+    Stemmer::create(Algorithm::English)
 }
 
 impl Index {
@@ -42,7 +65,7 @@ impl Index {
         Index {
             index: Self::load_index(),
             stop_words : Self::load_stopwords(),
-            stemmer: Self::new_stemmer(),
+            stemmer: new_stemmer(),
         }
     }
 
@@ -50,7 +73,7 @@ impl Index {
         let mut index = Self {
             index: HashMap::new(),
             stop_words : Self::load_stopwords(),
-            stemmer: Self::new_stemmer(),
+            stemmer: new_stemmer(),
         };
 
         for (line_number, line) in lines.into_iter().enumerate() {
@@ -76,10 +99,6 @@ impl Index {
 
     fn clean(word: &str) -> String {
         word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
-    }
-
-    fn new_stemmer() -> Stemmer {
-        Stemmer::create(Algorithm::English)
     }
     
     fn stem(&self, word: &str) -> String {
