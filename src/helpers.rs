@@ -1,4 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::{Local, DateTime};
 
 use crate::{tables::make_table, records::Record};

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use rev_buf_reader::RevBufReader;
 
-// use crate::helpers::format_line_result_for_output;
 use crate::locks::LockGuard;
 use crate::records::Record;
 

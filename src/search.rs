@@ -33,20 +33,20 @@ pub fn search(query: &[String], n: usize) -> Vec<Record> {
         .collect()
 }
 
-pub fn format_matches(query: &[String], result_lines: Vec<(String, String)>) -> Vec<(String, String)> {
+
+pub fn make_match_formatter(query: &[String]) -> impl Fn(&String) -> String {
     let stemmer = new_stemmer();
     let query_stems: HashSet<_> = query.iter().map(|query_word| stemmer.stem(query_word).to_string().to_lowercase()).collect();
-    result_lines.iter().map(|(timestamp, line)| {
-        let highlighted_line = line.split(' ').map(|word| {
+
+    move |message: &String| {
+        message.split(' ').map(|word| {
             let word_stem = stemmer.stem(&word).to_lowercase();
             if query_stems.contains(&word_stem) {
-                return word.to_owned().green().to_string()
+                return word.to_string().green().to_string()
             }
-            word.to_owned()
-        }).collect::<Vec<String>>().join(" ");
-        (timestamp.to_owned(), highlighted_line)
-    })
-    .collect()
+            word.to_string()
+        }).collect::<Vec<String>>().join(" ")
+    }
 }
 
 pub struct Index {
@@ -293,7 +293,8 @@ mod tests {
     #[test]
     fn test_add_line() {
         let mut index = Index::from_lines(Vec::<String>::new());
-        index.add_line(0, "1680917693908: Test message");
+        let record = Record::create("Test message".to_string());
+        index.add_line(0, &record);
 
         assert_eq!(index.lookup_word("test"), vec![0]);
         assert_eq!(index.lookup_word("message"), vec![0]);

@@ -5,8 +5,8 @@ mod cli;
 use cli::{get_cmd, Commands, ListArgs, SearchArgs};
 
 mod helpers;
-use helpers::{words_from_stdin, format_records_to_table, format_records};
-use formatters::get_date_fmt_fn;
+use helpers::{words_from_stdin, format_records_to_table};
+use formatters::{get_date_fmt_fn, Formatter};
 
 mod locks;
 mod search;
@@ -15,7 +15,6 @@ mod ago;
 mod tables;
 mod records;
 mod formatters;
-use search::format_matches;
 use store::STORE_FILENAME;
 use tables::make_table;
 use records::Record;
@@ -65,9 +64,12 @@ fn search(args: SearchArgs) -> Result<(), KprError> {
     };
 
     let records = search::search(&query, args.n);
-    let fmt_fn = get_date_fmt_fn(args.date_format);
-    let formatted_results = format_records(&records, fmt_fn);
-    let formatted_results = format_matches(&query, formatted_results);
+    let format_date = get_date_fmt_fn(args.date_format);
+    
+    let highlight_matches = search::make_match_formatter(&query);
+    let formatter = Formatter::new(format_date, highlight_matches);
+    let formatted_results = formatter.format_records(&records);
+
     let table = make_table(&formatted_results);
     for line in table {
         println!("{line}");

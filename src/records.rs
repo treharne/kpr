@@ -35,7 +35,7 @@ impl Record {
     }
 
     pub fn to_store(&self) -> String {
-        format!("{}: {}", self.timestamp, self.message)
+        format!("{}: {}", self.timestamp.timestamp_millis(), self.message)
     }
 
     fn datetime_from_epoch(ms: u128) -> Option<DateTime<Local>> {

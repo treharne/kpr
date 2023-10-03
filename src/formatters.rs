@@ -3,15 +3,14 @@ use crate::{ago, cli::DateFormat, records::Record};
 
 type Timestamp = DateTime<Local>;
 type TimestampFormatter = fn(Timestamp) -> String;
-type MessageFormatter = fn(&str) -> String;
 
-pub struct Formatter {
+pub struct Formatter<MF: Fn(&String) -> String> {
     timestamp_formatter: TimestampFormatter,
-    message_formatter: MessageFormatter,
+    message_formatter: MF,
 }
 
-impl Formatter {
-    pub fn new(timestamp_formatter: TimestampFormatter, message_formatter: MessageFormatter) -> Self {
+impl<MF: Fn(&String) -> String> Formatter<MF> {
+    pub fn new(timestamp_formatter: TimestampFormatter, message_formatter: MF) -> Self {
         Self{timestamp_formatter, message_formatter}
     }
 
@@ -26,10 +25,17 @@ impl Formatter {
     pub fn format_record(&self, record: &Record) -> (String, String) {
         (self.format_timestamp(&record), self.format_message(&record))
     }
+
+    pub fn format_records(&self, records: &[Record]) -> Vec<(String, String)> {
+        records
+        .iter()
+        .map(|record| self.format_record(record))
+        .collect()
+    }
 }
 
 
-pub fn get_date_fmt_fn(format: DateFormat) -> fn(Timestamp) -> String {
+pub fn get_date_fmt_fn(format: DateFormat) -> TimestampFormatter {
     match format {
         DateFormat::Ago => ago::from_datetime,
         DateFormat::Human => |ts| ts.format("%a %e %b %y %k:%M").to_string(),
